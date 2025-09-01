@@ -59,6 +59,9 @@ function PlayGame() {
   const [quizScore, setQuizScore] = useState(0);
   const [currentOperator, setCurrentOperator] = useState<string>('');
   const [debugInfo, setDebugInfo] = useState({ fps: 0, entities: 0 });
+  
+  // Track held keys for smooth movement
+  const keysPressed = useRef<Set<string>>(new Set());
 
   // Handle pause
   const togglePause = useCallback(() => {
@@ -204,9 +207,26 @@ function PlayGame() {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
+    // Update player position based on held keys
+    let playerX = gameState.playerX;
+    if (!gameState.isGameOver && !gameState.showQuiz && !gameState.isPaused) {
+      if (keysPressed.current.has('arrowleft') || keysPressed.current.has('a')) {
+        playerX -= PLAYER_SPEED * dt;
+      }
+      if (keysPressed.current.has('arrowright') || keysPressed.current.has('d')) {
+        playerX += PLAYER_SPEED * dt;
+      }
+      playerX = Math.max(PLAYER_SIZE / 2, Math.min(CANVAS_WIDTH - PLAYER_SIZE / 2, playerX));
+      
+      // Update state if position changed
+      if (playerX !== gameState.playerX) {
+        setGameState(prev => ({ ...prev, playerX }));
+      }
+    }
+
     // Update and draw player
     const playerRect = {
-      x: gameState.playerX - PLAYER_SIZE / 2,
+      x: playerX - PLAYER_SIZE / 2,
       y: gameState.playerY - PLAYER_SIZE / 2,
       width: PLAYER_SIZE,
       height: PLAYER_SIZE
@@ -299,34 +319,28 @@ function PlayGame() {
   // Handle keyboard input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (gameState.isGameOver || gameState.showQuiz) return;
-
-      switch (e.key) {
-        case 'ArrowLeft':
-        case 'a':
-        case 'A':
-          setGameState(prev => ({
-            ...prev,
-            playerX: Math.max(PLAYER_SIZE / 2, prev.playerX - PLAYER_SPEED * 0.016)
-          }));
-          break;
-        case 'ArrowRight':
-        case 'd':
-        case 'D':
-          setGameState(prev => ({
-            ...prev,
-            playerX: Math.min(CANVAS_WIDTH - PLAYER_SIZE / 2, prev.playerX + PLAYER_SPEED * 0.016)
-          }));
-          break;
-        case ' ':
-          e.preventDefault();
+      const key = e.key.toLowerCase();
+      keysPressed.current.add(key);
+      
+      if (key === ' ') {
+        e.preventDefault();
+        if (!gameState.isGameOver && !gameState.showQuiz) {
           togglePause();
-          break;
+        }
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressed.current.delete(e.key.toLowerCase());
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      keysPressed.current.clear();
+    };
   }, [gameState.isGameOver, gameState.showQuiz, togglePause]);
 
   // Handle mouse/touch input
