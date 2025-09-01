@@ -131,7 +131,8 @@ function PlayGame() {
     // Check if quiz is complete
     if (currentQuizIndex >= quizProblems.length - 1) {
       // Quiz complete
-      if (quizScore === quizProblems.length - 1 && isCorrect) {
+      const finalScore = quizScore + (isCorrect ? 1 : 0);
+      if (finalScore === quizProblems.length) {
         // Perfect score!
         playSound('powerup');
         confetti({
@@ -209,6 +210,7 @@ function PlayGame() {
 
     // Update player position based on held keys
     let playerX = gameState.playerX;
+    let playerY = gameState.playerY;
     if (!gameState.isGameOver && !gameState.showQuiz && !gameState.isPaused) {
       if (keysPressed.current.has('arrowleft') || keysPressed.current.has('a')) {
         playerX -= PLAYER_SPEED * dt;
@@ -216,18 +218,27 @@ function PlayGame() {
       if (keysPressed.current.has('arrowright') || keysPressed.current.has('d')) {
         playerX += PLAYER_SPEED * dt;
       }
+      if (keysPressed.current.has('arrowup') || keysPressed.current.has('w')) {
+        playerY -= PLAYER_SPEED * dt;
+      }
+      if (keysPressed.current.has('arrowdown') || keysPressed.current.has('s')) {
+        playerY += PLAYER_SPEED * dt;
+      }
+      
+      // Keep player in bounds
       playerX = Math.max(PLAYER_SIZE / 2, Math.min(CANVAS_WIDTH - PLAYER_SIZE / 2, playerX));
+      playerY = Math.max(PLAYER_SIZE / 2, Math.min(CANVAS_HEIGHT - PLAYER_SIZE / 2, playerY));
       
       // Update state if position changed
-      if (playerX !== gameState.playerX) {
-        setGameState(prev => ({ ...prev, playerX }));
+      if (playerX !== gameState.playerX || playerY !== gameState.playerY) {
+        setGameState(prev => ({ ...prev, playerX, playerY }));
       }
     }
 
     // Update and draw player
     const playerRect = {
       x: playerX - PLAYER_SIZE / 2,
-      y: gameState.playerY - PLAYER_SIZE / 2,
+      y: playerY - PLAYER_SIZE / 2,
       width: PLAYER_SIZE,
       height: PLAYER_SIZE
     };
@@ -353,11 +364,14 @@ function PlayGame() {
 
       const rect = canvas.getBoundingClientRect();
       const scaleX = CANVAS_WIDTH / rect.width;
+      const scaleY = CANVAS_HEIGHT / rect.height;
       const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
 
       setGameState(prev => ({
         ...prev,
-        playerX: Math.max(PLAYER_SIZE / 2, Math.min(CANVAS_WIDTH - PLAYER_SIZE / 2, x))
+        playerX: Math.max(PLAYER_SIZE / 2, Math.min(CANVAS_WIDTH - PLAYER_SIZE / 2, x)),
+        playerY: Math.max(PLAYER_SIZE / 2, Math.min(CANVAS_HEIGHT - PLAYER_SIZE / 2, y))
       }));
     };
 
@@ -520,41 +534,81 @@ function PlayGame() {
 
         {/* Mobile Controls */}
         {settings.showMobileControls && !gameState.isGameOver && !gameState.showQuiz && (
-          <div className="mt-4 flex justify-center gap-4">
-            <Button
-              size="lg"
-              variant="outline"
-              onPointerDown={() => {
-                const moveLeft = () => {
-                  setGameState(prev => ({
-                    ...prev,
-                    playerX: Math.max(PLAYER_SIZE / 2, prev.playerX - PLAYER_SPEED * 0.016)
-                  }));
-                };
-                const interval = setInterval(moveLeft, 16);
-                const cleanup = () => clearInterval(interval);
-                window.addEventListener('pointerup', cleanup, { once: true });
-              }}
-            >
-              ← Left
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onPointerDown={() => {
-                const moveRight = () => {
-                  setGameState(prev => ({
-                    ...prev,
-                    playerX: Math.min(CANVAS_WIDTH - PLAYER_SIZE / 2, prev.playerX + PLAYER_SPEED * 0.016)
-                  }));
-                };
-                const interval = setInterval(moveRight, 16);
-                const cleanup = () => clearInterval(interval);
-                window.addEventListener('pointerup', cleanup, { once: true });
-              }}
-            >
-              Right →
-            </Button>
+          <div className="mt-4 space-y-2">
+            <div className="flex justify-center">
+              <Button
+                size="lg"
+                variant="outline"
+                onPointerDown={() => {
+                  const moveUp = () => {
+                    setGameState(prev => ({
+                      ...prev,
+                      playerY: Math.max(PLAYER_SIZE / 2, prev.playerY - PLAYER_SPEED * 0.016)
+                    }));
+                  };
+                  const interval = setInterval(moveUp, 16);
+                  const cleanup = () => clearInterval(interval);
+                  window.addEventListener('pointerup', cleanup, { once: true });
+                }}
+              >
+                ↑ Up
+              </Button>
+            </div>
+            <div className="flex justify-center gap-4">
+              <Button
+                size="lg"
+                variant="outline"
+                onPointerDown={() => {
+                  const moveLeft = () => {
+                    setGameState(prev => ({
+                      ...prev,
+                      playerX: Math.max(PLAYER_SIZE / 2, prev.playerX - PLAYER_SPEED * 0.016)
+                    }));
+                  };
+                  const interval = setInterval(moveLeft, 16);
+                  const cleanup = () => clearInterval(interval);
+                  window.addEventListener('pointerup', cleanup, { once: true });
+                }}
+              >
+                ← Left
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onPointerDown={() => {
+                  const moveRight = () => {
+                    setGameState(prev => ({
+                      ...prev,
+                      playerX: Math.min(CANVAS_WIDTH - PLAYER_SIZE / 2, prev.playerX + PLAYER_SPEED * 0.016)
+                    }));
+                  };
+                  const interval = setInterval(moveRight, 16);
+                  const cleanup = () => clearInterval(interval);
+                  window.addEventListener('pointerup', cleanup, { once: true });
+                }}
+              >
+                Right →
+              </Button>
+            </div>
+            <div className="flex justify-center">
+              <Button
+                size="lg"
+                variant="outline"
+                onPointerDown={() => {
+                  const moveDown = () => {
+                    setGameState(prev => ({
+                      ...prev,
+                      playerY: Math.min(CANVAS_HEIGHT - PLAYER_SIZE / 2, prev.playerY + PLAYER_SPEED * 0.016)
+                    }));
+                  };
+                  const interval = setInterval(moveDown, 16);
+                  const cleanup = () => clearInterval(interval);
+                  window.addEventListener('pointerup', cleanup, { once: true });
+                }}
+              >
+                ↓ Down
+              </Button>
+            </div>
           </div>
         )}
       </div>

@@ -1,28 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { loadSettings, saveSettings, GameSettings, defaultSettings } from '@/lib/settings';
+import { loadGameSettings, saveGameSettings, ExtendedGameSettings, defaultGameSettings } from '@/lib/gameSettings';
 
 interface UseGameSettingsReturn {
-  settings: GameSettings & {
+  settings: ExtendedGameSettings & {
     difficulty: 'easy' | 'medium' | 'hard';
     enabledOperators: string[];
     questionsPerCollision: number;
     bubbleSpawnRate: number;
     showMobileControls: boolean;
   };
-  updateSettings: (newSettings: Partial<GameSettings>) => Promise<void>;
+  updateSettings: (newSettings: Partial<ExtendedGameSettings>) => Promise<void>;
   loading: boolean;
 }
 
 export function useGameSettings(): UseGameSettingsReturn {
-  const [settings, setSettings] = useState<GameSettings>(defaultSettings);
+  const [settings, setSettings] = useState<ExtendedGameSettings>(defaultGameSettings);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadUserSettings = async () => {
       try {
-        const loaded = await loadSettings();
+        const loaded = await loadGameSettings();
         setSettings(loaded);
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -34,18 +34,18 @@ export function useGameSettings(): UseGameSettingsReturn {
     loadUserSettings();
   }, []);
 
-  const updateSettings = async (newSettings: Partial<GameSettings>) => {
+  const updateSettings = async (newSettings: Partial<ExtendedGameSettings>) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
-    await saveSettings(updated);
+    await saveGameSettings(updated);
   };
 
   // Transform settings to match the expected interface
   const transformedSettings = {
     ...settings,
-    difficulty: settings.difficulty || 'medium' as 'easy' | 'medium' | 'hard',
-    enabledOperators: Object.entries(settings.allowedOperators)
-      .filter(([_, enabled]) => enabled)
+    difficulty: 'medium' as 'easy' | 'medium' | 'hard', // Default difficulty
+    enabledOperators: Object.entries(settings.operators)
+      .filter(([_, config]) => config.enabled)
       .map(([op]) => {
         switch (op) {
           case 'addition': return '+';
@@ -55,9 +55,9 @@ export function useGameSettings(): UseGameSettingsReturn {
           default: return '+';
         }
       }),
-    questionsPerCollision: 3, // Default value
-    bubbleSpawnRate: settings.difficulty === 'easy' ? 0.5 : settings.difficulty === 'hard' ? 2 : 1,
-    showMobileControls: false // Default value
+    questionsPerCollision: settings.questionsPerCollision,
+    bubbleSpawnRate: settings.bubblesPerMinute / 60, // Convert per minute to per second
+    showMobileControls: settings.mobileControls
   };
 
   return {

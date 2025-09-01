@@ -60,7 +60,7 @@ export function NumericKeypad({
         </button>
       ))}
 
-      {/* Bottom row: backspace, 0, enter */}
+      {/* Bottom row: backspace, 0, minus */}
       <button
         className={buttonClass('backspace')}
         onClick={() => handlePress('backspace')}
@@ -82,7 +82,17 @@ export function NumericKeypad({
       </button>
 
       <button
-        className={`${buttonClass('enter')} bg-green-600 hover:bg-green-700`}
+        className={buttonClass('-')}
+        onClick={() => handlePress('-')}
+        disabled={disabled}
+        aria-label="Minus sign"
+      >
+        <div className="py-4">−</div>
+      </button>
+
+      {/* Full width enter button */}
+      <button
+        className={`${buttonClass('enter')} bg-green-600 hover:bg-green-700 col-span-3`}
         onClick={() => handlePress('enter')}
         disabled={disabled}
         aria-label="Enter"

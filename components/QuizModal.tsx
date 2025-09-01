@@ -109,7 +109,17 @@ export function QuizModal({
   const handleKeyPress = useCallback((digit: string) => {
     if (showResult) return;
     
-    // Prevent leading zeros
+    // Handle negative sign
+    if (digit === '-') {
+      if (userAnswer === '') {
+        setUserAnswer('-');
+      } else if (userAnswer === '-') {
+        setUserAnswer('');
+      }
+      return;
+    }
+    
+    // Prevent leading zeros (except after negative sign)
     if (userAnswer === '0' && digit === '0') return;
     if (userAnswer === '0' && digit !== '0') {
       setUserAnswer(digit);
@@ -137,10 +147,16 @@ export function QuizModal({
     if (!isOpen || showResult) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key >= '0' && e.key <= '9') {
+      // Handle both regular number keys and numpad keys
+      if ((e.key >= '0' && e.key <= '9') || (e.code >= 'Numpad0' && e.code <= 'Numpad9')) {
         e.preventDefault();
-        handleKeyPress(e.key);
-      } else if (e.key === 'Enter') {
+        // Extract the digit from either regular key or numpad
+        const digit = e.code.startsWith('Numpad') ? e.code.slice(-1) : e.key;
+        handleKeyPress(digit);
+      } else if (e.key === '-' || e.code === 'NumpadSubtract') {
+        e.preventDefault();
+        handleKeyPress('-');
+      } else if (e.key === 'Enter' || e.code === 'NumpadEnter') {
         e.preventDefault();
         handleEnter();
       } else if (e.key === 'Backspace') {
