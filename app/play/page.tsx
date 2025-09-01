@@ -98,8 +98,8 @@ function PlayGame() {
     setGameState(prev => ({
       ...prev,
       bubbles: [], // Despawn all bubbles
-      showQuiz: true,
-      isPaused: true
+      showQuiz: true
+      // Don't pause the game - let it continue in the background
     }));
   }, [settings, playSound]);
 
@@ -152,8 +152,8 @@ function PlayGame() {
         // Continue game
         setGameState(prev => ({
           ...prev,
-          showQuiz: false,
-          isPaused: false
+          showQuiz: false
+          // Game continues without changing pause state
         }));
       }
     } else {
@@ -569,8 +569,8 @@ function PlayGame() {
           onClose={() => {
             setGameState(prev => ({
               ...prev,
-              showQuiz: false,
-              isPaused: false
+              showQuiz: false
+              // Don't change pause state - maintain whatever it was
             }));
           }}
           questionsCompleted={currentQuizIndex}
