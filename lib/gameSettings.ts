@@ -186,7 +186,7 @@ export function applyPreset(currentSettings: ExtendedGameSettings, presetName: k
       newSettings.operators[op] = {
         ...newSettings.operators[op],
         ...config,
-        allowNegative: config.allowNegative ?? false
+        allowNegative: (config as any).allowNegative ?? newSettings.operators[op].allowNegative
       };
     } else {
       newSettings.operators[op] = {
