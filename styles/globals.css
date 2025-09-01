@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Progress Ring Styles for Timer */
+@keyframes progress {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 100;
+  }
+}
+
+.progress-ring {
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.progress-ring__circle {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.35s;
+  stroke-linecap: round;
+}
+
+.progress-ring__background {
+  fill: none;
+  stroke: #e5e7eb;
+  stroke-width: 4;
+}
+
+.progress-ring__progress {
+  fill: none;
+  stroke: #3b82f6;
+  stroke-width: 4;
+  animation: progress linear;
+}
