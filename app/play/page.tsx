@@ -260,7 +260,33 @@ function PlayGame() {
         playerRect
       )) {
         collisionDetected = true;
-        handleCollision(bubble);
+        
+        if (bubble.isPenalty) {
+          // Penalty bubble - lose a life immediately
+          playSound('wrong');
+          setGameState(prev => {
+            const newLives = prev.lives - 1;
+            if (newLives <= 0) {
+              playSound('gameOver');
+              return {
+                ...prev,
+                lives: 0,
+                isGameOver: true,
+                isPaused: true,
+                bubbles: []
+              };
+            }
+            return {
+              ...prev,
+              lives: newLives,
+              streak: 0,
+              bubbles: [] // Clear all bubbles on penalty hit
+            };
+          });
+        } else {
+          // Regular bubble - trigger quiz
+          handleCollision(bubble);
+        }
         break; // Stop processing bubbles since we'll clear them all
       }
 
@@ -303,15 +329,21 @@ function PlayGame() {
         operator = operators[Math.floor(Math.random() * operators.length)];
       }
 
+      // 20% chance of penalty bubble
+      const isPenalty = Math.random() < 0.2;
+      
       const bubble: Bubble = {
         id: Date.now() + Math.random(),
         x: BUBBLE_RADIUS + Math.random() * (CANVAS_WIDTH - 2 * BUBBLE_RADIUS),
         y: -BUBBLE_RADIUS,
         speed: 100 + Math.random() * 50,
-        operator,
-        color: operator === '+' ? '#4ade80' : 
-               operator === '-' ? '#f87171' :
-               operator === '×' ? '#60a5fa' : '#fbbf24'
+        operator: isPenalty ? '!' : operator,
+        color: isPenalty ? '#ef4444' : (
+          operator === '+' ? '#4ade80' : 
+          operator === '-' ? '#f87171' :
+          operator === '×' ? '#60a5fa' : '#fbbf24'
+        ),
+        isPenalty
       };
 
       updatedBubbles.push(bubble);

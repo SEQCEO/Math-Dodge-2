@@ -147,9 +147,6 @@ export function QuizModal({
     if (!isOpen || showResult) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Debug logging
-      console.log('Key pressed:', e.key, 'Code:', e.code);
-      
       // Handle both regular number keys and numpad keys
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();

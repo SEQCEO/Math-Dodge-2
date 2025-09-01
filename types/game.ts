@@ -12,6 +12,7 @@ export interface Bubble {
   speed: number;
   operator: string;
   color: string;
+  isPenalty?: boolean;
 }
 
 export interface GameState {
