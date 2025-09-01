@@ -147,12 +147,19 @@ export function QuizModal({
     if (!isOpen || showResult) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Debug logging
+      console.log('Key pressed:', e.key, 'Code:', e.code);
+      
       // Handle both regular number keys and numpad keys
-      if ((e.key >= '0' && e.key <= '9') || (e.code >= 'Numpad0' && e.code <= 'Numpad9')) {
+      if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
-        // Extract the digit from either regular key or numpad
-        const digit = e.code.startsWith('Numpad') ? e.code.slice(-1) : e.key;
-        handleKeyPress(digit);
+        handleKeyPress(e.key);
+      } else if (e.code.startsWith('Numpad') && e.code.length === 7) {
+        e.preventDefault();
+        const digit = e.code.slice(-1);
+        if (digit >= '0' && digit <= '9') {
+          handleKeyPress(digit);
+        }
       } else if (e.key === '-' || e.code === 'NumpadSubtract') {
         e.preventDefault();
         handleKeyPress('-');
