@@ -182,10 +182,18 @@ export function applyPreset(currentSettings: ExtendedGameSettings, presetName: k
   // Then apply the preset
   Object.entries(preset.operators).forEach(([operator, config]) => {
     const op = operator as keyof typeof newSettings.operators;
-    newSettings.operators[op] = {
-      ...newSettings.operators[op],
-      ...config
-    };
+    if (op === 'sub') {
+      newSettings.operators[op] = {
+        ...newSettings.operators[op],
+        ...config,
+        allowNegative: config.allowNegative ?? false
+      };
+    } else {
+      newSettings.operators[op] = {
+        ...newSettings.operators[op],
+        ...config
+      } as any;
+    }
   });
   
   return newSettings;
