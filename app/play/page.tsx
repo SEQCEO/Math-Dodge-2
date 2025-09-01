@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -24,7 +24,7 @@ const SPEED_INCREASE_RATE = 0.02; // 2%
 const MAX_SPEED_MULTIPLIER = 1.5;
 const MAX_DT = 33; // milliseconds
 
-export default function PlayPage() {
+function PlayGame() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isDebug = searchParams.get('debug') === '1';
@@ -580,5 +580,17 @@ export default function PlayPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function PlayPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 p-4 flex items-center justify-center">
+        <div className="text-white text-xl">Loading game...</div>
+      </div>
+    }>
+      <PlayGame />
+    </Suspense>
   );
 }
