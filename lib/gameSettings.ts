@@ -22,11 +22,6 @@ export interface ExtendedGameSettings {
   soundEnabled: boolean;
   mobileControls: boolean;
   failFast: boolean;
-  // Family Chain settings
-  familyChainEnabled: boolean;
-  chainLength: number;
-  allowDecompositions: boolean;
-  includeAddSubInChain: boolean;
 }
 
 export const operatorColors = {
