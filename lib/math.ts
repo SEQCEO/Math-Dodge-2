@@ -1,4 +1,3 @@
-import { GameSettings } from './settings';
 import { genQuestion, Operator } from './mathGen';
 
 export interface Problem {
