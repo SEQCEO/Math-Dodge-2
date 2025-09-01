@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Pause, Play, Volume2, VolumeX, Home } from 'lucide-react';
-import { QuizModal } from '@/components/game/QuizModal';
+import { QuizModal } from '@/components/QuizModal';
 import { useGameSettings } from '@/hooks/useGameSettings';
 import { useSound } from '@/hooks/useSound';
 import { generateProblem, checkAnswer } from '@/lib/math';
