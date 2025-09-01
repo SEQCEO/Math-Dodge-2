@@ -294,12 +294,12 @@ function PlayGame() {
       let operator: string;
       if (isDebug) {
         // Cycle through operators in debug mode
-        const operators = settings.enabledOperators;
+        const operators = settings.enabledOperators.length > 0 ? settings.enabledOperators : ['+'];
         operator = operators[debugSpawnIndexRef.current % operators.length];
         debugSpawnIndexRef.current++;
       } else {
         // Random operator
-        const operators = settings.enabledOperators;
+        const operators = settings.enabledOperators.length > 0 ? settings.enabledOperators : ['+'];
         operator = operators[Math.floor(Math.random() * operators.length)];
       }
 

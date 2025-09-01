@@ -41,20 +41,22 @@ export function useGameSettings(): UseGameSettingsReturn {
   };
 
   // Transform settings to match the expected interface
+  const enabledOps = Object.entries(settings.operators)
+    .filter(([_, config]) => config.enabled)
+    .map(([op]) => {
+      switch (op) {
+        case 'addition': return '+';
+        case 'subtraction': return '-';
+        case 'multiplication': return '×';
+        case 'division': return '÷';
+        default: return '+';
+      }
+    });
+  
   const transformedSettings = {
     ...settings,
     difficulty: 'medium' as 'easy' | 'medium' | 'hard', // Default difficulty
-    enabledOperators: Object.entries(settings.operators)
-      .filter(([_, config]) => config.enabled)
-      .map(([op]) => {
-        switch (op) {
-          case 'addition': return '+';
-          case 'subtraction': return '-';
-          case 'multiplication': return '×';
-          case 'division': return '÷';
-          default: return '+';
-        }
-      }),
+    enabledOperators: enabledOps,
     questionsPerCollision: settings.questionsPerCollision,
     bubbleSpawnRate: settings.bubblesPerMinute / 60, // Convert per minute to per second
     showMobileControls: settings.mobileControls
