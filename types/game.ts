@@ -5,14 +5,18 @@ export interface Problem {
   answer: number;
 }
 
+export type BubbleKind = 'hazard' | 'op';
+
 export interface Bubble {
   id: number;
   x: number;
   y: number;
-  speed: number;
-  operator: string;
+  vx: number;
+  vy: number;
+  radius: number;
+  kind: BubbleKind;
+  operator?: string;
   color: string;
-  isPenalty?: boolean;
 }
 
 export interface GameState {

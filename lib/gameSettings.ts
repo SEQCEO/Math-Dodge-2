@@ -22,6 +22,19 @@ export interface ExtendedGameSettings {
   soundEnabled: boolean;
   mobileControls: boolean;
   failFast: boolean;
+  spawn: {
+    baseHazardBPM: number;
+    maxHazardBPM: number;
+    opBPM: number;
+    hazardRatioBias: number;
+    maxHazards: number;
+    maxOps: number;
+    minXYGapPx: number;
+    minRowGapPx: number;
+    rowBandPx: number;
+    minPlayerXGapPx: number;
+    quizCooldownMs: number;
+  };
 }
 
 export const operatorColors = {
@@ -84,7 +97,20 @@ export const defaultGameSettings: ExtendedGameSettings = {
   bubblesPerMinute: 30,
   soundEnabled: true,
   mobileControls: true,
-  failFast: false
+  failFast: false,
+  spawn: {
+    baseHazardBPM: 12,
+    maxHazardBPM: 30,
+    opBPM: 15,
+    hazardRatioBias: 0.3,
+    maxHazards: 3,
+    maxOps: 4,
+    minXYGapPx: 80,
+    minRowGapPx: 120,
+    rowBandPx: 60,
+    minPlayerXGapPx: 100,
+    quizCooldownMs: 3000
+  }
 };
 
 export const presets = {
@@ -140,8 +166,20 @@ export function loadGameSettings(): Promise<ExtendedGameSettings> {
       const stored = localStorage.getItem('mathDodgeSettings');
       if (stored) {
         const parsed = JSON.parse(stored);
-        // Merge with defaults to ensure all properties exist
-        resolve({ ...defaultGameSettings, ...parsed });
+        // Deep merge with defaults to ensure all properties exist, especially nested ones
+        const merged = {
+          ...defaultGameSettings,
+          ...parsed,
+          spawn: {
+            ...defaultGameSettings.spawn,
+            ...(parsed.spawn || {})
+          },
+          operators: {
+            ...defaultGameSettings.operators,
+            ...(parsed.operators || {})
+          }
+        };
+        resolve(merged);
       } else {
         resolve(defaultGameSettings);
       }

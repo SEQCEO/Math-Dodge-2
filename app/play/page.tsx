@@ -18,11 +18,15 @@ const CANVAS_HEIGHT = 540;
 const PLAYER_SIZE = 30;
 const BUBBLE_RADIUS = 25;
 const PLAYER_SPEED = 300; // pixels per second
-const MAX_BUBBLES = 6;
 const SPEED_INCREASE_INTERVAL = 20; // seconds
 const SPEED_INCREASE_RATE = 0.02; // 2%
 const MAX_SPEED_MULTIPLIER = 1.5;
 const MAX_DT = 33; // milliseconds
+
+// Lerp function for smooth interpolation
+function lerp(start: number, end: number, t: number): number {
+  return start + (end - start) * t;
+}
 
 function PlayGame() {
   const router = useRouter();
@@ -34,8 +38,12 @@ function PlayGame() {
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
   const elapsedTimeRef = useRef<number>(0);
-  const spawnTimerRef = useRef<number>(0);
   const debugSpawnIndexRef = useRef<number>(0);
+  
+  // Spawn system refs
+  const hazardSpawnTimerRef = useRef<number>(0);
+  const opSpawnTimerRef = useRef<number>(0);
+  const lastQuizTimeRef = useRef<number>(0);
   
   const { settings } = useGameSettings();
   const { playSound, isMuted, toggleMute } = useSound();
@@ -77,33 +85,92 @@ function PlayGame() {
     }
   }, [gameState.isGameOver, gameState.showQuiz, gameState.isPaused, playSound]);
 
-  // Handle collision
-  const handleCollision = useCallback((bubble: Bubble) => {
-    playSound('collision');
+  // Helper function to check if a bubble can be placed
+  const canPlaceBubble = useCallback((newBubble: { x: number; y: number; radius: number }, existingBubbles: Bubble[], playerX: number, playerY: number): boolean => {
+    const spawnSettings = settings.spawn || {
+      minXYGapPx: 80,
+      minRowGapPx: 120,
+      minPlayerXGapPx: 100,
+      rowBandPx: 60
+    };
     
-    // Track which operator was hit
-    setCurrentOperator(bubble.operator);
-    
-    // Generate quiz problems for the specific operator that was hit
-    const problems: Problem[] = [];
-    for (let i = 0; i < settings.questionsPerCollision; i++) {
-      problems.push(generateProblem({
-        difficulty: settings.difficulty,
-        operators: [bubble.operator] // Only generate problems for the hit operator
-      }));
+    // Check against existing bubbles
+    for (const bubble of existingBubbles) {
+      const dx = Math.abs(bubble.x - newBubble.x);
+      const dy = Math.abs(bubble.y - newBubble.y);
+      
+      // Check X/Y minimum gap
+      if (dx < spawnSettings.minXYGapPx && dy < spawnSettings.minXYGapPx) {
+        return false;
+      }
+      
+      // Check row gap (if in same row band)
+      if (dy < spawnSettings.rowBandPx && dx < spawnSettings.minRowGapPx) {
+        return false;
+      }
     }
     
-    setQuizProblems(problems);
-    setCurrentQuizIndex(0);
-    setQuizScore(0);
+    // Check against player X position
+    if (Math.abs(playerX - newBubble.x) < spawnSettings.minPlayerXGapPx) {
+      return false;
+    }
     
-    // Clear ALL bubbles and show quiz
-    setGameState(prev => ({
-      ...prev,
-      bubbles: [], // Despawn all bubbles
-      showQuiz: true
-      // Don't pause the game - let it continue in the background
-    }));
+    return true;
+  }, [settings.spawn]);
+
+  // Handle collision
+  const handleCollision = useCallback((bubble: Bubble) => {
+    if (bubble.kind === 'hazard') {
+      // Hazard bubble - instant life loss
+      playSound('wrong');
+      setGameState(prev => {
+        const newLives = prev.lives - 1;
+        if (newLives <= 0) {
+          playSound('gameOver');
+          return {
+            ...prev,
+            lives: 0,
+            isGameOver: true,
+            isPaused: true,
+            bubbles: []
+          };
+        }
+        return {
+          ...prev,
+          lives: newLives,
+          streak: 0,
+          bubbles: [] // Clear all bubbles on hazard hit
+        };
+      });
+    } else {
+      // Math operator bubble - trigger quiz
+      playSound('collision');
+      lastQuizTimeRef.current = performance.now();
+      
+      // Track which operator was hit
+      setCurrentOperator(bubble.operator || '+');
+      
+      // Generate quiz problems for the specific operator that was hit
+      const problems: Problem[] = [];
+      for (let i = 0; i < settings.questionsPerCollision; i++) {
+        problems.push(generateProblem({
+          difficulty: settings.difficulty,
+          operators: [bubble.operator || '+'] // Only generate problems for the hit operator
+        }));
+      }
+      
+      setQuizProblems(problems);
+      setCurrentQuizIndex(0);
+      setQuizScore(0);
+      
+      // Clear ALL bubbles and show quiz
+      setGameState(prev => ({
+        ...prev,
+        bubbles: [], // Despawn all bubbles
+        showQuiz: true
+        // Don't pause the game - let it continue in the background
+      }));
+    }
   }, [settings, playSound]);
 
   // Handle quiz answer
@@ -183,7 +250,8 @@ function PlayGame() {
     
     lastTimeRef.current = timestamp;
     elapsedTimeRef.current += dt;
-    spawnTimerRef.current += dt;
+    hazardSpawnTimerRef.current += dt;
+    opSpawnTimerRef.current += dt;
 
     // Update FPS for debug
     if (isDebug) {
@@ -251,47 +319,22 @@ function PlayGame() {
     let collisionDetected = false;
 
     for (const bubble of gameState.bubbles) {
-      // Update position
-      bubble.y += bubble.speed * speedMultiplier * dt;
+      // Update position with velocity
+      bubble.x += bubble.vx * dt;
+      bubble.y += bubble.vy * dt;
 
       // Check collision with player
       if (!collisionDetected && circleIntersectsRect(
-        { x: bubble.x, y: bubble.y, radius: BUBBLE_RADIUS },
+        { x: bubble.x, y: bubble.y, radius: bubble.radius },
         playerRect
       )) {
         collisionDetected = true;
-        
-        if (bubble.isPenalty) {
-          // Penalty bubble - lose a life immediately
-          playSound('wrong');
-          setGameState(prev => {
-            const newLives = prev.lives - 1;
-            if (newLives <= 0) {
-              playSound('gameOver');
-              return {
-                ...prev,
-                lives: 0,
-                isGameOver: true,
-                isPaused: true,
-                bubbles: []
-              };
-            }
-            return {
-              ...prev,
-              lives: newLives,
-              streak: 0,
-              bubbles: [] // Clear all bubbles on penalty hit
-            };
-          });
-        } else {
-          // Regular bubble - trigger quiz
-          handleCollision(bubble);
-        }
+        handleCollision(bubble);
         break; // Stop processing bubbles since we'll clear them all
       }
 
       // Keep bubble if still on screen
-      if (bubble.y < CANVAS_HEIGHT + BUBBLE_RADIUS) {
+      if (bubble.y < CANVAS_HEIGHT + bubble.radius) {
         updatedBubbles.push(bubble);
       }
     }
@@ -300,53 +343,112 @@ function PlayGame() {
     for (const bubble of updatedBubbles) {
       // Bubble background
       ctx.beginPath();
-      ctx.arc(bubble.x, bubble.y, BUBBLE_RADIUS, 0, Math.PI * 2);
+      ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2);
       ctx.fillStyle = bubble.color;
       ctx.fill();
 
-      // Bubble text
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 16px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(bubble.operator, bubble.x, bubble.y);
+      // Bubble text (only for math bubbles)
+      if (bubble.kind === 'op' && bubble.operator) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(bubble.operator, bubble.x, bubble.y);
+      }
     }
 
     // Spawn new bubbles
-    const spawnRate = isDebug ? 2 : settings.bubbleSpawnRate;
-    if (spawnTimerRef.current >= 1 / spawnRate && updatedBubbles.length < MAX_BUBBLES) {
-      spawnTimerRef.current = 0;
-
-      let operator: string;
-      if (isDebug) {
-        // Cycle through operators in debug mode
-        const operators = settings.enabledOperators.length > 0 ? settings.enabledOperators : ['+'];
-        operator = operators[debugSpawnIndexRef.current % operators.length];
-        debugSpawnIndexRef.current++;
-      } else {
-        // Random operator
-        const operators = settings.enabledOperators.length > 0 ? settings.enabledOperators : ['+'];
-        operator = operators[Math.floor(Math.random() * operators.length)];
+    const spawnSettings = settings.spawn || {
+      baseHazardBPM: 12,
+      maxHazardBPM: 30,
+      opBPM: 15,
+      hazardRatioBias: 0.3,
+      maxHazards: 3,
+      maxOps: 4,
+      minXYGapPx: 80,
+      minRowGapPx: 120,
+      rowBandPx: 60,
+      minPlayerXGapPx: 100,
+      quizCooldownMs: 3000
+    };
+    
+    // Count current bubble types
+    const hazardCount = updatedBubbles.filter(b => b.kind === 'hazard').length;
+    const opCount = updatedBubbles.filter(b => b.kind === 'op').length;
+    
+    // Calculate hazard spawn rate with difficulty scaling
+    const currentTime = performance.now();
+    const timeSinceLastQuiz = currentTime - lastQuizTimeRef.current;
+    const canSpawnOp = timeSinceLastQuiz > spawnSettings.quizCooldownMs;
+    
+    const t = Math.min(elapsedTimeRef.current / 120, 1); // 2 minutes to max difficulty
+    const currentHazardBPM = lerp(spawnSettings.baseHazardBPM, spawnSettings.maxHazardBPM, t);
+    
+    // Try to spawn hazard bubbles
+    if (hazardCount < spawnSettings.maxHazards) {
+      const hazardSpawnInterval = 60 / currentHazardBPM; // Convert BPM to seconds
+      if (hazardSpawnTimerRef.current >= hazardSpawnInterval) {
+        hazardSpawnTimerRef.current = 0;
+        
+        // Try multiple positions to find valid placement
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const x = BUBBLE_RADIUS + Math.random() * (CANVAS_WIDTH - 2 * BUBBLE_RADIUS);
+          const newBubble = { x, y: -BUBBLE_RADIUS, radius: BUBBLE_RADIUS };
+          
+          if (canPlaceBubble(newBubble, updatedBubbles, playerX, playerY)) {
+            const bubble: Bubble = {
+              id: Date.now() + Math.random(),
+              x,
+              y: -BUBBLE_RADIUS,
+              vx: 0,
+              vy: 150 + Math.random() * 50, // 150-200 pixels/second
+              radius: BUBBLE_RADIUS,
+              kind: 'hazard',
+              color: '#ef4444' // Red color for hazards
+            };
+            updatedBubbles.push(bubble);
+            break;
+          }
+        }
       }
-
-      // 20% chance of penalty bubble
-      const isPenalty = Math.random() < 0.2;
-      
-      const bubble: Bubble = {
-        id: Date.now() + Math.random(),
-        x: BUBBLE_RADIUS + Math.random() * (CANVAS_WIDTH - 2 * BUBBLE_RADIUS),
-        y: -BUBBLE_RADIUS,
-        speed: 100 + Math.random() * 50,
-        operator: isPenalty ? '!' : operator,
-        color: isPenalty ? '#ef4444' : (
-          operator === '+' ? '#4ade80' : 
-          operator === '-' ? '#f87171' :
-          operator === '×' ? '#60a5fa' : '#fbbf24'
-        ),
-        isPenalty
-      };
-
-      updatedBubbles.push(bubble);
+    }
+    
+    // Try to spawn operator bubbles
+    if (canSpawnOp && opCount < spawnSettings.maxOps) {
+      const opSpawnInterval = 60 / spawnSettings.opBPM; // Convert BPM to seconds
+      if (opSpawnTimerRef.current >= opSpawnInterval) {
+        opSpawnTimerRef.current = 0;
+        
+        // Select operator
+        const operators = settings.enabledOperators.length > 0 ? settings.enabledOperators : ['+'];
+        const operator = isDebug 
+          ? operators[debugSpawnIndexRef.current++ % operators.length]
+          : operators[Math.floor(Math.random() * operators.length)];
+        
+        // Try multiple positions to find valid placement
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const x = BUBBLE_RADIUS + Math.random() * (CANVAS_WIDTH - 2 * BUBBLE_RADIUS);
+          const newBubble = { x, y: -BUBBLE_RADIUS, radius: BUBBLE_RADIUS };
+          
+          if (canPlaceBubble(newBubble, updatedBubbles, playerX, playerY)) {
+            const bubble: Bubble = {
+              id: Date.now() + Math.random(),
+              x,
+              y: -BUBBLE_RADIUS,
+              vx: 0,
+              vy: 100 + Math.random() * 50, // 100-150 pixels/second
+              radius: BUBBLE_RADIUS,
+              kind: 'op',
+              operator,
+              color: operator === '+' ? '#4ade80' : 
+                     operator === '-' ? '#3b82f6' :
+                     operator === '×' ? '#a855f7' : '#f97316'
+            };
+            updatedBubbles.push(bubble);
+            break;
+          }
+        }
+      }
     }
 
     // Update state
