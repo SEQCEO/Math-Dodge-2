@@ -439,6 +439,9 @@ function PlayGame() {
         updatedBubbles.push(bubble);
       }
     }
+    
+    // Get current time for various calculations
+    const currentTime = performance.now();
 
     // Draw bubbles
     for (const bubble of updatedBubbles) {
@@ -487,7 +490,6 @@ function PlayGame() {
     const opCount = updatedBubbles.filter(b => b.kind === 'op').length;
     
     // Calculate hazard spawn rate with difficulty scaling
-    const currentTime = performance.now();
     const timeSinceLastQuiz = currentTime - lastQuizTimeRef.current;
     const canSpawnOp = timeSinceLastQuiz > spawnSettings.quizCooldownMs;
     
