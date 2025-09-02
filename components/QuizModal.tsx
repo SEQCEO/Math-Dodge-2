@@ -66,9 +66,21 @@ export function QuizModal({
         modalRef.current?.focus();
         // Also focus the window to ensure keyboard events are captured
         window.focus();
+        console.log('Modal focused, activeElement:', document.activeElement);
       }, 100);
     }
   }, [isOpen, question, timeLimit]);
+  
+  // Global test listener
+  useEffect(() => {
+    if (isOpen) {
+      const testListener = (e: KeyboardEvent) => {
+        console.log('GLOBAL TEST: Key pressed anywhere:', e.key, e.code, 'target:', e.target);
+      };
+      document.addEventListener('keydown', testListener, true);
+      return () => document.removeEventListener('keydown', testListener, true);
+    }
+  }, [isOpen]);
 
   // Timer effect
   useEffect(() => {
@@ -197,8 +209,14 @@ export function QuizModal({
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // Try both window and document, and use capture phase
+    window.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
   }, [isOpen, showResult, handleKeyPress, handleEnter, handleBackspace, onClose]);
 
   if (!isOpen) return null;
@@ -217,9 +235,12 @@ export function QuizModal({
     >
       <div
         ref={modalRef}
-        tabIndex={-1}
-        className="relative bg-gray-900 rounded-lg shadow-xl p-6 max-w-md w-full mx-4"
-        onKeyDown={(e) => e.stopPropagation()}
+        tabIndex={0}
+        className="relative bg-gray-900 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        onKeyDown={(e) => {
+          console.log('QuizModal div keydown event:', e.key);
+          e.stopPropagation();
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
