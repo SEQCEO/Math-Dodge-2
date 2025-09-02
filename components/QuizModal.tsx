@@ -66,21 +66,10 @@ export function QuizModal({
         modalRef.current?.focus();
         // Also focus the window to ensure keyboard events are captured
         window.focus();
-        console.log('Modal focused, activeElement:', document.activeElement);
       }, 100);
     }
   }, [isOpen, question, timeLimit]);
   
-  // Global test listener
-  useEffect(() => {
-    if (isOpen) {
-      const testListener = (e: KeyboardEvent) => {
-        console.log('GLOBAL TEST: Key pressed anywhere:', e.key, e.code, 'target:', e.target);
-      };
-      document.addEventListener('keydown', testListener, true);
-      return () => document.removeEventListener('keydown', testListener, true);
-    }
-  }, [isOpen]);
 
   // Timer effect
   useEffect(() => {
@@ -159,36 +148,22 @@ export function QuizModal({
 
   // Global keyboard listener
   useEffect(() => {
-    console.log('QuizModal keyboard listener setup:', { isOpen, showResult });
-    
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Always log, even if showResult is true
-      console.log('QuizModal received key event:', {
-        key: e.key,
-        code: e.code,
-        keyCode: e.keyCode,
-        which: e.which,
-        showResult: showResult,
-        userAnswer: userAnswer
-      });
-      
       if (showResult) return;
       
       // Handle all number inputs - from main keyboard, numpad, or any other source
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
-        console.log('Number key pressed:', e.key);
         handleKeyPress(e.key);
         return;
       }
       
-      // Also check keyCode for numpad (96-105 are numpad 0-9)
+      // Also check keyCode for numpad (96-105 are numpad 0-9) as fallback
       if (e.keyCode >= 96 && e.keyCode <= 105) {
         e.preventDefault();
         const digit = String(e.keyCode - 96);
-        console.log('Numpad digit via keyCode:', digit);
         handleKeyPress(digit);
         return;
       }
@@ -209,12 +184,10 @@ export function QuizModal({
       }
     };
 
-    // Try both window and document, and use capture phase
-    window.addEventListener('keydown', handleKeyDown, true);
+    // Only use document listener in capture phase
     document.addEventListener('keydown', handleKeyDown, true);
     
     return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
       document.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [isOpen, showResult, handleKeyPress, handleEnter, handleBackspace, onClose]);
@@ -237,10 +210,6 @@ export function QuizModal({
         ref={modalRef}
         tabIndex={0}
         className="relative bg-gray-900 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        onKeyDown={(e) => {
-          console.log('QuizModal div keydown event:', e.key);
-          e.stopPropagation();
-        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -338,21 +307,6 @@ export function QuizModal({
               Correct answer: <span className="font-bold text-white">{question.answer}</span>
             </p>
           )}
-          {/* Debug info */}
-          <div className="text-center mt-2">
-            <p className="text-xs text-gray-500">
-              Press any key to test input (check console)
-            </p>
-            <button 
-              onClick={() => {
-                console.log('Test button clicked, calling handleKeyPress("5")');
-                handleKeyPress('5');
-              }}
-              className="mt-1 px-2 py-1 text-xs bg-blue-500 text-white rounded"
-            >
-              Test: Add 5
-            </button>
-          </div>
         </div>
 
         {/* Keypad */}

@@ -622,7 +622,6 @@ function PlayGame() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't capture keys when quiz is showing
       if (gameState.showQuiz) {
-        console.log('Game: Ignoring key during quiz:', e.key);
         return;
       }
       
