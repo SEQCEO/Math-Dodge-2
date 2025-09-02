@@ -17,6 +17,8 @@ export interface Bubble {
   kind: BubbleKind;
   operator?: string;
   color: string;
+  grazed?: boolean;
+  bornAt?: number;
 }
 
 export interface GameState {

@@ -99,17 +99,17 @@ export const defaultGameSettings: ExtendedGameSettings = {
   mobileControls: true,
   failFast: false,
   spawn: {
-    baseHazardBPM: 40,
-    maxHazardBPM: 80,
-    opBPM: 15,
+    baseHazardBPM: 60,
+    maxHazardBPM: 110,
+    opBPM: 8,
     hazardRatioBias: 0.7,
-    maxHazards: 8,
-    maxOps: 4,
-    minXYGapPx: 60,
-    minRowGapPx: 100,
-    rowBandPx: 60,
-    minPlayerXGapPx: 80,
-    quizCooldownMs: 3000
+    maxHazards: 10,
+    maxOps: 2,
+    minXYGapPx: 90,
+    minRowGapPx: 140,
+    rowBandPx: 90,
+    minPlayerXGapPx: 140,
+    quizCooldownMs: 2500
   }
 };
 

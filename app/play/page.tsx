@@ -17,7 +17,7 @@ const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
 const PLAYER_SIZE = 30;
 const BUBBLE_RADIUS = 25;
-const PLAYER_SPEED = 300; // pixels per second
+const PLAYER_SPEED = 420; // pixels per second - increased for better control
 const SPEED_INCREASE_INTERVAL = 20; // seconds
 const SPEED_INCREASE_RATE = 0.02; // 2%
 const MAX_SPEED_MULTIPLIER = 1.5;
@@ -44,6 +44,11 @@ function PlayGame() {
   const hazardSpawnTimerRef = useRef<number>(0);
   const opSpawnTimerRef = useRef<number>(0);
   const lastQuizTimeRef = useRef<number>(0);
+  const lastOpSpawnRef = useRef<number>(0);
+  
+  // Pattern system refs
+  type Pattern = 'burstTriplet' | 'sweepWithGap' | 'driftStream';
+  const patternStateRef = useRef<{ cooldownUntil: number }>({ cooldownUntil: 0 });
   
   const { settings } = useGameSettings();
   const { playSound, isMuted, toggleMute } = useSound();
@@ -117,6 +122,85 @@ function PlayGame() {
     
     return true;
   }, [settings.spawn]);
+
+  // Pattern spawning functions
+  const spawnPattern = useCallback((pattern: Pattern, updatedBubbles: Bubble[], speedMultiplier: number) => {
+    const now = performance.now();
+    
+    if (pattern === 'burstTriplet') {
+      // Three hazards at staggered x, same y, different vx → weave
+      const y = -20;
+      const baseX = 80 + Math.random() * (CANVAS_WIDTH - 160);
+      const dx = 90 + Math.random() * 50;
+      const xs = [baseX - dx, baseX, baseX + dx].map(x => Math.max(40, Math.min(CANVAS_WIDTH - 40, x)));
+      
+      for (let i = 0; i < xs.length; i++) {
+        const bubble: Bubble = {
+          id: Date.now() + Math.random() + i,
+          x: xs[i],
+          y,
+          vx: (Math.random() - 0.5) * 200,
+          vy: (120 + Math.random() * 60) * speedMultiplier,
+          radius: 14 + Math.random() * 8,
+          kind: 'hazard',
+          color: '#ef4444',
+          bornAt: now
+        };
+        updatedBubbles.push(bubble);
+      }
+      patternStateRef.current.cooldownUntil = now + 900;
+    }
+    
+    if (pattern === 'sweepWithGap') {
+      // A horizontal sweep (3–5 hazards) leaving a guaranteed gap corridor
+      const lanes = 5;
+      const laneWidth = CANVAS_WIDTH / lanes;
+      const gapLane = 1 + Math.floor(Math.random() * (lanes - 2)); // avoid extreme edges
+      
+      for (let i = 0; i < lanes; i++) {
+        if (i === gapLane) continue; // single-lane gap
+        
+        const x = (i + 0.5) * laneWidth + (Math.random() - 0.5) * 40;
+        const bubble: Bubble = {
+          id: Date.now() + Math.random() + i,
+          x,
+          y: -20,
+          vx: (Math.random() - 0.5) * 100,
+          vy: (120 + Math.random() * 60) * speedMultiplier,
+          radius: 16 + Math.random() * 6,
+          kind: 'hazard',
+          color: '#ef4444',
+          bornAt: now
+        };
+        updatedBubbles.push(bubble);
+      }
+      patternStateRef.current.cooldownUntil = now + 1100;
+    }
+    
+    if (pattern === 'driftStream') {
+      // A short stream from one side with diagonal drift across
+      const fromLeft = Math.random() < 0.5;
+      const x0 = fromLeft ? (50 + Math.random() * 70) : (CANVAS_WIDTH - 120 + Math.random() * 70);
+      const vx = fromLeft ? (60 + Math.random() * 60) : -(60 + Math.random() * 60);
+      
+      for (let k = 0; k < 3; k++) {
+        const y = -20 - k * 60;
+        const bubble: Bubble = {
+          id: Date.now() + Math.random() + k,
+          x: x0 + (Math.random() - 0.5) * 40,
+          y,
+          vx,
+          vy: (120 + Math.random() * 40) * speedMultiplier,
+          radius: 14 + Math.random() * 6,
+          kind: 'hazard',
+          color: '#ef4444',
+          bornAt: now
+        };
+        updatedBubbles.push(bubble);
+      }
+      patternStateRef.current.cooldownUntil = now + 900;
+    }
+  }, []);
 
   // Handle collision
   const handleCollision = useCallback((bubble: Bubble) => {
@@ -335,12 +419,36 @@ function PlayGame() {
 
       // Keep bubble if still on screen
       if (bubble.y < CANVAS_HEIGHT + bubble.radius) {
+        // Near-miss detection for hazard bubbles
+        if (bubble.kind === 'hazard' && !bubble.grazed) {
+          const dx = Math.abs(bubble.x - playerX);
+          const dy = Math.abs(bubble.y - playerY);
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const minDistance = bubble.radius + PLAYER_SIZE / 2;
+          
+          if (distance > minDistance && distance < minDistance + 20) {
+            bubble.grazed = true;
+            setGameState(prev => ({
+              ...prev,
+              score: prev.score + 1
+            }));
+            // Could add a small sound effect here if desired
+          }
+        }
+        
         updatedBubbles.push(bubble);
       }
     }
 
     // Draw bubbles
     for (const bubble of updatedBubbles) {
+      // Calculate fade-in alpha
+      const age = bubble.bornAt ? currentTime - bubble.bornAt : 1000;
+      const alpha = Math.min(age / 300, 1); // Fade in over 300ms
+      
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      
       // Bubble background
       ctx.beginPath();
       ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2);
@@ -355,21 +463,23 @@ function PlayGame() {
         ctx.textBaseline = 'middle';
         ctx.fillText(bubble.operator, bubble.x, bubble.y);
       }
+      
+      ctx.restore();
     }
 
     // Spawn new bubbles
     const spawnSettings = settings.spawn || {
-      baseHazardBPM: 40,
-      maxHazardBPM: 80,
-      opBPM: 15,
+      baseHazardBPM: 60,
+      maxHazardBPM: 110,
+      opBPM: 8,
       hazardRatioBias: 0.7,
-      maxHazards: 8,
-      maxOps: 4,
-      minXYGapPx: 60,
-      minRowGapPx: 100,
-      rowBandPx: 60,
-      minPlayerXGapPx: 80,
-      quizCooldownMs: 3000
+      maxHazards: 10,
+      maxOps: 2,
+      minXYGapPx: 90,
+      minRowGapPx: 140,
+      rowBandPx: 90,
+      minPlayerXGapPx: 140,
+      quizCooldownMs: 2500
     };
     
     // Count current bubble types
@@ -400,11 +510,12 @@ function PlayGame() {
               id: Date.now() + Math.random(),
               x,
               y: -BUBBLE_RADIUS,
-              vx: 0,
-              vy: 150 + Math.random() * 50, // 150-200 pixels/second
-              radius: BUBBLE_RADIUS,
+              vx: (Math.random() - 0.5) * 240, // -120 to 120 pixels/second horizontal drift
+              vy: 100 + Math.random() * 80, // 100-180 pixels/second down
+              radius: 14 + Math.random() * 8, // 14-22 pixel radius variety
               kind: 'hazard',
-              color: '#ef4444' // Red color for hazards
+              color: '#ef4444', // Red color for hazards
+              bornAt: currentTime
             };
             updatedBubbles.push(bubble);
             break;
@@ -435,19 +546,62 @@ function PlayGame() {
               id: Date.now() + Math.random(),
               x,
               y: -BUBBLE_RADIUS,
-              vx: 0,
-              vy: 100 + Math.random() * 50, // 100-150 pixels/second
-              radius: BUBBLE_RADIUS,
+              vx: (Math.random() - 0.5) * 120, // -60 to 60 pixels/second horizontal drift
+              vy: 60 + Math.random() * 40, // 60-100 pixels/second down (slower than hazards)
+              radius: 18,
               kind: 'op',
               operator,
               color: operator === '+' ? '#4ade80' : 
                      operator === '-' ? '#3b82f6' :
-                     operator === '×' ? '#a855f7' : '#f97316'
+                     operator === '×' ? '#a855f7' : '#f97316',
+              bornAt: currentTime
             };
             updatedBubbles.push(bubble);
             break;
           }
         }
+      }
+    }
+    
+    // Guaranteed math bubble every 8-12 seconds
+    const timeSinceLastOp = currentTime - lastOpSpawnRef.current;
+    if (canSpawnOp && opCount < spawnSettings.maxOps && timeSinceLastOp > 8000 + Math.random() * 4000) {
+      lastOpSpawnRef.current = currentTime;
+      
+      // Select operator
+      const operators = settings.enabledOperators.length > 0 ? settings.enabledOperators : ['+'];
+      const operator = isDebug 
+        ? operators[debugSpawnIndexRef.current++ % operators.length]
+        : operators[Math.floor(Math.random() * operators.length)];
+      
+      // Bias toward center for reachability
+      const centerBias = CANVAS_WIDTH * 0.3 + Math.random() * CANVAS_WIDTH * 0.4;
+      const bubble: Bubble = {
+        id: Date.now() + Math.random(),
+        x: centerBias,
+        y: -BUBBLE_RADIUS,
+        vx: (Math.random() - 0.5) * 60,
+        vy: 60 + Math.random() * 40,
+        radius: 18,
+        kind: 'op',
+        operator,
+        color: operator === '+' ? '#4ade80' : 
+               operator === '-' ? '#3b82f6' :
+               operator === '×' ? '#a855f7' : '#f97316',
+        bornAt: currentTime
+      };
+      updatedBubbles.push(bubble);
+    }
+    
+    // Pattern spawning - scales with difficulty, never during quiz
+    if (!gameState.showQuiz && currentTime > patternStateRef.current.cooldownUntil) {
+      const intensity = Math.min(1, elapsedTimeRef.current / 120); // 0→1 over 120s
+      const chance = 0.004 + intensity * 0.006; // 0.4%→1% per frame at 60fps
+      
+      if (Math.random() < chance) {
+        const patterns: Pattern[] = ['burstTriplet', 'sweepWithGap', 'driftStream'];
+        const selectedPattern = patterns[Math.floor(Math.random() * patterns.length)];
+        spawnPattern(selectedPattern, updatedBubbles, speedMultiplier);
       }
     }
 
@@ -459,7 +613,7 @@ function PlayGame() {
 
     // Continue loop
     rafRef.current = requestAnimationFrame(gameLoop);
-  }, [gameState, settings, isDebug, handleCollision]);
+  }, [gameState, settings, isDebug, handleCollision, canPlaceBubble, spawnPattern]);
 
   // Handle keyboard input
   useEffect(() => {
