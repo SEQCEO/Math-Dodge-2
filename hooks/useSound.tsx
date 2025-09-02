@@ -24,8 +24,15 @@ export function useSound(): UseSoundReturn {
   // Load sounds on mount
   useEffect(() => {
     Object.entries(soundUrls).forEach(([name, url]) => {
-      const audio = new Audio(url);
+      const audio = new Audio();
       audio.preload = 'auto';
+      
+      // Set source and handle errors
+      audio.src = url;
+      audio.addEventListener('error', (e) => {
+        console.warn(`Sound file not found: ${url}`);
+      });
+      
       audioRefs.current[name] = audio;
     });
   }, []);
@@ -34,12 +41,12 @@ export function useSound(): UseSoundReturn {
     if (isMuted) return;
 
     const audio = audioRefs.current[soundName];
-    if (audio) {
+    if (audio && audio.readyState >= 2) { // Check if audio is loaded
       // Clone the audio to allow multiple simultaneous plays
       const clone = audio.cloneNode() as HTMLAudioElement;
       clone.volume = 0.5; // Set default volume
       clone.play().catch(error => {
-        console.warn(`Failed to play sound ${soundName}:`, error);
+        // Silently fail - sound files are optional
       });
     }
   }, [isMuted]);
