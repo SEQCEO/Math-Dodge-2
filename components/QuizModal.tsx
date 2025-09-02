@@ -150,25 +150,37 @@ export function QuizModal({
     if (!isOpen || showResult) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Handle both regular number keys and numpad keys
+      // Debug logging to see what's happening
+      console.log('Key event:', {
+        key: e.key,
+        code: e.code,
+        keyCode: e.keyCode,
+        which: e.which,
+        shiftKey: e.shiftKey,
+        ctrlKey: e.ctrlKey,
+        altKey: e.altKey,
+        metaKey: e.metaKey
+      });
+      
+      // Handle all number inputs - from main keyboard, numpad, or any other source
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
+        console.log('Number key pressed:', e.key);
         handleKeyPress(e.key);
-      } else if (e.code.startsWith('Numpad')) {
-        // Handle numpad numbers
-        if (e.code === 'Numpad0') handleKeyPress('0');
-        else if (e.code === 'Numpad1') handleKeyPress('1');
-        else if (e.code === 'Numpad2') handleKeyPress('2');
-        else if (e.code === 'Numpad3') handleKeyPress('3');
-        else if (e.code === 'Numpad4') handleKeyPress('4');
-        else if (e.code === 'Numpad5') handleKeyPress('5');
-        else if (e.code === 'Numpad6') handleKeyPress('6');
-        else if (e.code === 'Numpad7') handleKeyPress('7');
-        else if (e.code === 'Numpad8') handleKeyPress('8');
-        else if (e.code === 'Numpad9') handleKeyPress('9');
-        else if (e.code === 'NumpadSubtract') handleKeyPress('-');
+        return;
+      }
+      
+      // Also check keyCode for numpad (96-105 are numpad 0-9)
+      if (e.keyCode >= 96 && e.keyCode <= 105) {
         e.preventDefault();
-      } else if (e.key === '-') {
+        const digit = String(e.keyCode - 96);
+        console.log('Numpad digit via keyCode:', digit);
+        handleKeyPress(digit);
+        return;
+      }
+      
+      // Handle minus/negative sign
+      if (e.key === '-' || e.keyCode === 109 || e.keyCode === 189) {
         e.preventDefault();
         handleKeyPress('-');
       } else if (e.key === 'Enter' || e.code === 'NumpadEnter') {
@@ -303,6 +315,10 @@ export function QuizModal({
               Correct answer: <span className="font-bold text-white">{question.answer}</span>
             </p>
           )}
+          {/* Debug info */}
+          <p className="text-center mt-2 text-xs text-gray-500">
+            Press any key to test input (check console)
+          </p>
         </div>
 
         {/* Keypad */}
