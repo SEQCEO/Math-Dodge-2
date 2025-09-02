@@ -61,8 +61,12 @@ export function QuizModal({
       setUserAnswer('');
       setShowResult(false);
       setTimeRemaining(timeLimit);
-      // Focus the modal for accessibility
-      setTimeout(() => modalRef.current?.focus(), 100);
+      // Focus the modal for accessibility and ensure keyboard events work
+      setTimeout(() => {
+        modalRef.current?.focus();
+        // Also focus the window to ensure keyboard events are captured
+        window.focus();
+      }, 100);
     }
   }, [isOpen, question, timeLimit]);
 
@@ -147,6 +151,8 @@ export function QuizModal({
     if (!isOpen || showResult) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      console.log('QuizModal keydown:', e.key, e.code); // Debug log
+      
       // Handle both regular number keys and numpad keys
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
