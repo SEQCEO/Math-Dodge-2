@@ -102,13 +102,12 @@ export function QuizModal({
     const correct = answer === question.answer;
     setIsCorrect(correct);
     setShowResult(true);
-    onAnswer(answer, correct);
     
-    // Auto-close after showing result
+    // Show result for a moment before calling onAnswer
     setTimeout(() => {
-      onClose();
+      onAnswer(answer, correct);
     }, correct ? 1000 : 2000);
-  }, [userAnswer, question.answer, onAnswer, onClose]);
+  }, [userAnswer, question.answer, onAnswer]);
 
   const handleKeyPress = useCallback((digit: string) => {
     if (showResult) return;
@@ -151,19 +150,25 @@ export function QuizModal({
     if (!isOpen || showResult) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      console.log('QuizModal keydown:', e.key, e.code); // Debug log
-      
       // Handle both regular number keys and numpad keys
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
         handleKeyPress(e.key);
-      } else if (e.code.startsWith('Numpad') && e.code.length === 7) {
+      } else if (e.code.startsWith('Numpad')) {
+        // Handle numpad numbers
+        if (e.code === 'Numpad0') handleKeyPress('0');
+        else if (e.code === 'Numpad1') handleKeyPress('1');
+        else if (e.code === 'Numpad2') handleKeyPress('2');
+        else if (e.code === 'Numpad3') handleKeyPress('3');
+        else if (e.code === 'Numpad4') handleKeyPress('4');
+        else if (e.code === 'Numpad5') handleKeyPress('5');
+        else if (e.code === 'Numpad6') handleKeyPress('6');
+        else if (e.code === 'Numpad7') handleKeyPress('7');
+        else if (e.code === 'Numpad8') handleKeyPress('8');
+        else if (e.code === 'Numpad9') handleKeyPress('9');
+        else if (e.code === 'NumpadSubtract') handleKeyPress('-');
         e.preventDefault();
-        const digit = e.code.slice(-1);
-        if (digit >= '0' && digit <= '9') {
-          handleKeyPress(digit);
-        }
-      } else if (e.key === '-' || e.code === 'NumpadSubtract') {
+      } else if (e.key === '-') {
         e.preventDefault();
         handleKeyPress('-');
       } else if (e.key === 'Enter' || e.code === 'NumpadEnter') {
