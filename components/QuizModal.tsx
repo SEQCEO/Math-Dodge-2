@@ -147,20 +147,22 @@ export function QuizModal({
 
   // Global keyboard listener
   useEffect(() => {
-    if (!isOpen || showResult) return;
+    console.log('QuizModal keyboard listener setup:', { isOpen, showResult });
+    
+    if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Debug logging to see what's happening
-      console.log('Key event:', {
+      // Always log, even if showResult is true
+      console.log('QuizModal received key event:', {
         key: e.key,
         code: e.code,
         keyCode: e.keyCode,
         which: e.which,
-        shiftKey: e.shiftKey,
-        ctrlKey: e.ctrlKey,
-        altKey: e.altKey,
-        metaKey: e.metaKey
+        showResult: showResult,
+        userAnswer: userAnswer
       });
+      
+      if (showResult) return;
       
       // Handle all number inputs - from main keyboard, numpad, or any other source
       if (e.key >= '0' && e.key <= '9') {
@@ -316,9 +318,20 @@ export function QuizModal({
             </p>
           )}
           {/* Debug info */}
-          <p className="text-center mt-2 text-xs text-gray-500">
-            Press any key to test input (check console)
-          </p>
+          <div className="text-center mt-2">
+            <p className="text-xs text-gray-500">
+              Press any key to test input (check console)
+            </p>
+            <button 
+              onClick={() => {
+                console.log('Test button clicked, calling handleKeyPress("5")');
+                handleKeyPress('5');
+              }}
+              className="mt-1 px-2 py-1 text-xs bg-blue-500 text-white rounded"
+            >
+              Test: Add 5
+            </button>
+          </div>
         </div>
 
         {/* Keypad */}
