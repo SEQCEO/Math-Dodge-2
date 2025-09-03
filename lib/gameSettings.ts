@@ -18,7 +18,9 @@ export interface ExtendedGameSettings {
   };
   questionsPerCollision: number;
   secondsPerQuestion: number;
+  questionTimeLimitSeconds: number; // 5-30, default 15
   bubblesPerMinute: number;
+  maxActiveBubbles: number;  // Total cap on active bubbles (operator + hazard)
   soundEnabled: boolean;
   mobileControls: boolean;
   failFast: boolean;
@@ -34,6 +36,20 @@ export interface ExtendedGameSettings {
     rowBandPx: number;
     minPlayerXGapPx: number;
     quizCooldownMs: number;
+  };
+  escalation: {
+    enabled: boolean;
+    idleStartSeconds: number;
+    maxSpawnMultiplier: number;
+    maxSizeMultiplier: number;
+    rampSeconds: number;
+    curve: 'linear' | 'easeIn' | 'easeOut';
+  };
+  scoring: {
+    basePoints: number;
+    bucketSeconds: number;
+    fastBonusPctAtZero: number;
+    slowBonusPctAtTimeout: number;
   };
 }
 
@@ -94,7 +110,9 @@ export const defaultGameSettings: ExtendedGameSettings = {
   },
   questionsPerCollision: 3,
   secondsPerQuestion: 15,
+  questionTimeLimitSeconds: 15,
   bubblesPerMinute: 30,
+  maxActiveBubbles: 15,  // Default max active bubbles cap
   soundEnabled: true,
   mobileControls: true,
   failFast: false,
@@ -110,6 +128,20 @@ export const defaultGameSettings: ExtendedGameSettings = {
     rowBandPx: 90,
     minPlayerXGapPx: 140,
     quizCooldownMs: 2500
+  },
+  escalation: {
+    enabled: true,
+    idleStartSeconds: 10,
+    maxSpawnMultiplier: 2.0,
+    maxSizeMultiplier: 1.4,
+    rampSeconds: 10,
+    curve: 'linear'
+  },
+  scoring: {
+    basePoints: 100,
+    bucketSeconds: 2,
+    fastBonusPctAtZero: 100,
+    slowBonusPctAtTimeout: 0
   }
 };
 
@@ -177,7 +209,19 @@ export function loadGameSettings(): Promise<ExtendedGameSettings> {
           operators: {
             ...defaultGameSettings.operators,
             ...(parsed.operators || {})
-          }
+          },
+          escalation: {
+            ...defaultGameSettings.escalation,
+            ...(parsed.escalation || {})
+          },
+          scoring: {
+            ...defaultGameSettings.scoring,
+            ...(parsed.scoring || {})
+          },
+          // Ensure maxActiveBubbles exists
+          maxActiveBubbles: parsed.maxActiveBubbles ?? defaultGameSettings.maxActiveBubbles,
+          // Handle questionTimeLimitSeconds with backwards compatibility
+          questionTimeLimitSeconds: parsed.questionTimeLimitSeconds ?? parsed.secondsPerQuestion ?? defaultGameSettings.questionTimeLimitSeconds
         };
         resolve(merged);
       } else {

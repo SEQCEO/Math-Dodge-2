@@ -12,6 +12,7 @@ import { generateProblem, checkAnswer } from '@/lib/math';
 import { circleIntersectsRect } from '@/lib/physics';
 import confetti from 'canvas-confetti';
 import type { Problem, Bubble, GameState } from '@/types/game';
+import { diagnostics, isDiagnosticsEnabled } from '@/lib/diagnostics';
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -49,6 +50,10 @@ function PlayGame() {
   // Pattern system refs
   type Pattern = 'burstTriplet' | 'sweepWithGap' | 'driftStream';
   const patternStateRef = useRef<{ cooldownUntil: number }>({ cooldownUntil: 0 });
+  
+  // Escalation system refs
+  const timeSinceLastCollisionRef = useRef<number>(0);
+  const lastCollisionTimeRef = useRef<number>(0);
   
   const { settings } = useGameSettings();
   const { playSound, isMuted, toggleMute } = useSound();
@@ -231,6 +236,10 @@ function PlayGame() {
       playSound('collision');
       lastQuizTimeRef.current = performance.now();
       
+      // Reset escalation timer on collision
+      lastCollisionTimeRef.current = performance.now();
+      timeSinceLastCollisionRef.current = 0;
+      
       // Track which operator was hit
       setCurrentOperator(bubble.operator || '+');
       
@@ -238,8 +247,8 @@ function PlayGame() {
       const problems: Problem[] = [];
       for (let i = 0; i < settings.questionsPerCollision; i++) {
         problems.push(generateProblem({
-          difficulty: settings.difficulty,
-          operators: [bubble.operator || '+'] // Only generate problems for the hit operator
+          settings: settings,
+          specificOperator: bubble.operator || '+' // Only generate problems for the hit operator
         }));
       }
       
@@ -258,16 +267,25 @@ function PlayGame() {
   }, [settings, playSound]);
 
   // Handle quiz answer
-  const handleQuizAnswer = useCallback((answer: number) => {
+  const handleQuizAnswer = useCallback((answer: number, timeRemainingSeconds?: number) => {
     const currentProblem = quizProblems[currentQuizIndex];
     const isCorrect = checkAnswer(currentProblem, answer);
     
+    let points = 0;
     if (isCorrect) {
+      // Calculate speed-based scoring
+      const timeUsed = settings.questionTimeLimitSeconds - (timeRemainingSeconds || 0);
+      const buckets = Math.floor(timeUsed / settings.scoring.bucketSeconds);
+      const maxBuckets = Math.floor(settings.questionTimeLimitSeconds / settings.scoring.bucketSeconds);
+      const speedRatio = 1 - (buckets / maxBuckets);
+      const bonusPct = lerp(settings.scoring.slowBonusPctAtTimeout, settings.scoring.fastBonusPctAtZero, speedRatio);
+      points = Math.round(settings.scoring.basePoints * (1 + bonusPct / 100));
+      
       playSound('correct');
       setQuizScore(prev => prev + 1);
       setGameState(prev => ({
         ...prev,
-        score: prev.score + 10,
+        score: prev.score + points,
         streak: prev.streak + 1
       }));
     } else {
@@ -494,27 +512,48 @@ function PlayGame() {
     const canSpawnOp = timeSinceLastQuiz > spawnSettings.quizCooldownMs;
     
     const t = Math.min(elapsedTimeRef.current / 120, 1); // 2 minutes to max difficulty
-    const currentHazardBPM = lerp(spawnSettings.baseHazardBPM, spawnSettings.maxHazardBPM, t);
+    let currentHazardBPM = lerp(spawnSettings.baseHazardBPM, spawnSettings.maxHazardBPM, t);
+    let effectiveBubbleRadius = BUBBLE_RADIUS;
+    
+    // Apply anti-dodging escalation if enabled
+    if (settings.escalation.enabled) {
+      timeSinceLastCollisionRef.current = (currentTime - lastCollisionTimeRef.current) / 1000; // Convert to seconds
+      const tIdle = Math.max(0, timeSinceLastCollisionRef.current - settings.escalation.idleStartSeconds);
+      let p = Math.min(tIdle / settings.escalation.rampSeconds, 1); // 0→1
+      
+      // Apply curve
+      if (settings.escalation.curve === 'easeIn') {
+        p = p * p;
+      } else if (settings.escalation.curve === 'easeOut') {
+        p = 1 - (1 - p) * (1 - p);
+      }
+      
+      // Apply multipliers
+      currentHazardBPM *= lerp(1, settings.escalation.maxSpawnMultiplier, p);
+      effectiveBubbleRadius *= lerp(1, settings.escalation.maxSizeMultiplier, p);
+    }
     
     // Try to spawn hazard bubbles
-    if (hazardCount < spawnSettings.maxHazards) {
+    if (hazardCount < spawnSettings.maxHazards && updatedBubbles.length < settings.maxActiveBubbles) {
       const hazardSpawnInterval = 60 / currentHazardBPM; // Convert BPM to seconds
       if (hazardSpawnTimerRef.current >= hazardSpawnInterval) {
         hazardSpawnTimerRef.current = 0;
         
         // Try multiple positions to find valid placement
         for (let attempt = 0; attempt < 10; attempt++) {
-          const x = BUBBLE_RADIUS + Math.random() * (CANVAS_WIDTH - 2 * BUBBLE_RADIUS);
-          const newBubble = { x, y: -BUBBLE_RADIUS, radius: BUBBLE_RADIUS };
+          const x = effectiveBubbleRadius + Math.random() * (CANVAS_WIDTH - 2 * effectiveBubbleRadius);
+          const baseRadius = 14 + Math.random() * 8; // Base variety
+          const scaledRadius = baseRadius * (effectiveBubbleRadius / BUBBLE_RADIUS); // Scale with escalation
+          const newBubble = { x, y: -scaledRadius, radius: scaledRadius };
           
           if (canPlaceBubble(newBubble, updatedBubbles, playerX, playerY)) {
             const bubble: Bubble = {
               id: Date.now() + Math.random(),
               x,
-              y: -BUBBLE_RADIUS,
+              y: -scaledRadius,
               vx: (Math.random() - 0.5) * 240, // -120 to 120 pixels/second horizontal drift
               vy: 100 + Math.random() * 80, // 100-180 pixels/second down
-              radius: 14 + Math.random() * 8, // 14-22 pixel radius variety
+              radius: scaledRadius,
               kind: 'hazard',
               color: '#ef4444', // Red color for hazards
               bornAt: currentTime
@@ -527,9 +566,10 @@ function PlayGame() {
     }
     
     // Try to spawn operator bubbles
-    if (canSpawnOp && opCount < spawnSettings.maxOps) {
-      const opSpawnInterval = 60 / spawnSettings.opBPM; // Convert BPM to seconds
-      if (opSpawnTimerRef.current >= opSpawnInterval) {
+    if (canSpawnOp && opCount < spawnSettings.maxOps && settings.enabledOperators.length > 0) {
+      // Use the user-configured BPM for operator bubbles
+      const opSpawnInterval = 60 / settings.bubblesPerMinute; // Convert BPM to seconds
+      if (opSpawnTimerRef.current >= opSpawnInterval && updatedBubbles.length < settings.maxActiveBubbles) {
         opSpawnTimerRef.current = 0;
         
         // Select operator
@@ -565,9 +605,10 @@ function PlayGame() {
       }
     }
     
-    // Guaranteed math bubble every 8-12 seconds
+    // Guaranteed math bubble if we haven't spawned one in a while
     const timeSinceLastOp = currentTime - lastOpSpawnRef.current;
-    if (canSpawnOp && opCount < spawnSettings.maxOps && timeSinceLastOp > 8000 + Math.random() * 4000) {
+    const guaranteedInterval = Math.max(8000, (60000 / settings.bubblesPerMinute) * 3); // At least 3x the spawn interval
+    if (canSpawnOp && opCount < spawnSettings.maxOps && timeSinceLastOp > guaranteedInterval && updatedBubbles.length < settings.maxActiveBubbles && settings.enabledOperators.length > 0) {
       lastOpSpawnRef.current = currentTime;
       
       // Select operator
@@ -679,6 +720,10 @@ function PlayGame() {
   useEffect(() => {
     if (gameState.isPlaying && !gameState.isPaused && !gameState.showQuiz) {
       lastTimeRef.current = performance.now();
+      // Initialize escalation timer on game start
+      if (lastCollisionTimeRef.current === 0) {
+        lastCollisionTimeRef.current = performance.now();
+      }
       rafRef.current = requestAnimationFrame(gameLoop);
     } else if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
@@ -921,10 +966,9 @@ function PlayGame() {
                      quizProblems[currentQuizIndex].operator as '+' | '-' | '*' | '/',
             answer: quizProblems[currentQuizIndex].answer
           }}
-          timeLimit={15} // Default 15 seconds per question
-          onAnswer={(answer: number) => {
-            const isCorrect = checkAnswer(quizProblems[currentQuizIndex], answer);
-            handleQuizAnswer(answer);
+          timeLimit={settings.questionTimeLimitSeconds}
+          onAnswer={(answer: number, isCorrect: boolean, timeRemainingSeconds: number) => {
+            handleQuizAnswer(answer, timeRemainingSeconds);
           }}
           onTimeout={() => {
             // Treat timeout as a wrong answer
@@ -939,7 +983,7 @@ function PlayGame() {
           }}
           questionsCompleted={currentQuizIndex}
           totalQuestions={quizProblems.length}
-          failFastOnTimeout={false}
+          failFastOnTimeout={settings.failFast}
           isPaused={gameState.isPaused}
         />
       )}

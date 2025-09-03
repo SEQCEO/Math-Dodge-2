@@ -11,7 +11,7 @@ interface QuizModalProps {
     answer: number;
   };
   timeLimit: number;
-  onAnswer: (answer: number, isCorrect: boolean) => void;
+  onAnswer: (answer: number, isCorrect: boolean, timeRemainingSeconds: number) => void;
   onTimeout: () => void;
   onClose: () => void;
   questionsCompleted: number;
@@ -104,11 +104,14 @@ export function QuizModal({
     setIsCorrect(correct);
     setShowResult(true);
     
+    // Capture time remaining for speed-based scoring
+    const timeRemainingSeconds = timeRemaining;
+    
     // Show result for a moment before calling onAnswer
     setTimeout(() => {
-      onAnswer(answer, correct);
+      onAnswer(answer, correct, timeRemainingSeconds);
     }, correct ? 1000 : 2000);
-  }, [userAnswer, question.answer, onAnswer]);
+  }, [userAnswer, question.answer, onAnswer, timeRemaining]);
 
   const handleKeyPress = useCallback((digit: string) => {
     if (showResult) return;

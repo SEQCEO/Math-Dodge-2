@@ -255,16 +255,24 @@ export default function Settings() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Seconds per Question
+                Question Time Limit (seconds)
               </label>
               <input
                 type="number"
                 min={5}
-                max={60}
-                value={settings.secondsPerQuestion}
-                onChange={(e) => setSettings(prev => ({ ...prev, secondsPerQuestion: parseInt(e.target.value) || 15 }))}
+                max={30}
+                value={settings.questionTimeLimitSeconds || settings.secondsPerQuestion}
+                onChange={(e) => {
+                  const value = Math.min(30, Math.max(5, parseInt(e.target.value) || 15));
+                  setSettings(prev => ({ 
+                    ...prev, 
+                    questionTimeLimitSeconds: value,
+                    secondsPerQuestion: value // Keep both in sync
+                  }));
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
+              <p className="text-xs text-gray-500 mt-1">5-30 seconds per question</p>
             </div>
 
             <div>
@@ -279,6 +287,23 @@ export default function Settings() {
                 onChange={(e) => setSettings(prev => ({ ...prev, bubblesPerMinute: parseInt(e.target.value) || 30 }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Max Active Bubbles
+              </label>
+              <input
+                type="number"
+                min={5}
+                max={30}
+                value={settings.maxActiveBubbles || 15}
+                onChange={(e) => setSettings(prev => ({ ...prev, maxActiveBubbles: parseInt(e.target.value) || 15 }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Maximum bubbles on screen at once</p>
             </div>
           </div>
 
@@ -312,6 +337,239 @@ export default function Settings() {
               />
               <span className="text-gray-700">Fail fast (end quiz on first wrong answer)</span>
             </label>
+          </div>
+        </div>
+      </section>
+
+      {/* Anti-Dodging Escalation Section */}
+      <section className="mb-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-4">Anti-Dodging Escalation</h2>
+        
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <label className="flex items-center gap-2 mb-4">
+            <input
+              type="checkbox"
+              checked={settings.escalation?.enabled ?? true}
+              onChange={(e) => setSettings(prev => ({ 
+                ...prev, 
+                escalation: { 
+                  ...prev.escalation,
+                  enabled: e.target.checked 
+                }
+              }))}
+              className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-gray-700 font-medium">Enable anti-dodging escalation</span>
+          </label>
+
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${!settings.escalation?.enabled ? 'opacity-50' : ''}`}>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Idle Start (seconds)
+              </label>
+              <input
+                type="number"
+                min={5}
+                max={30}
+                value={settings.escalation?.idleStartSeconds ?? 10}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  escalation: { 
+                    ...prev.escalation,
+                    idleStartSeconds: parseInt(e.target.value) || 10 
+                  }
+                }))}
+                disabled={!settings.escalation?.enabled}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Time before escalation starts</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Ramp Duration (seconds)
+              </label>
+              <input
+                type="number"
+                min={5}
+                max={30}
+                value={settings.escalation?.rampSeconds ?? 10}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  escalation: { 
+                    ...prev.escalation,
+                    rampSeconds: parseInt(e.target.value) || 10 
+                  }
+                }))}
+                disabled={!settings.escalation?.enabled}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Time to reach max difficulty</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Escalation Curve
+              </label>
+              <select
+                value={settings.escalation?.curve ?? 'linear'}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  escalation: { 
+                    ...prev.escalation,
+                    curve: e.target.value as 'linear' | 'easeIn' | 'easeOut'
+                  }
+                }))}
+                disabled={!settings.escalation?.enabled}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="linear">Linear</option>
+                <option value="easeIn">Ease In (slow start)</option>
+                <option value="easeOut">Ease Out (fast start)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Max Spawn Rate Multiplier
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={3}
+                step={0.1}
+                value={settings.escalation?.maxSpawnMultiplier ?? 2.0}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  escalation: { 
+                    ...prev.escalation,
+                    maxSpawnMultiplier: parseFloat(e.target.value) || 2.0 
+                  }
+                }))}
+                disabled={!settings.escalation?.enabled}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Max spawn rate increase (2.0 = 200%)</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Max Size Multiplier
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={2}
+                step={0.1}
+                value={settings.escalation?.maxSizeMultiplier ?? 1.4}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  escalation: { 
+                    ...prev.escalation,
+                    maxSizeMultiplier: parseFloat(e.target.value) || 1.4 
+                  }
+                }))}
+                disabled={!settings.escalation?.enabled}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Max bubble size increase (1.4 = +40%)</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Speed-based Scoring Section */}
+      <section className="mb-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-4">Speed-based Scoring</h2>
+        
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Base Points per Correct Answer
+              </label>
+              <input
+                type="number"
+                min={10}
+                max={1000}
+                step={10}
+                value={settings.scoring?.basePoints ?? 100}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  scoring: { 
+                    ...prev.scoring,
+                    basePoints: parseInt(e.target.value) || 100 
+                  }
+                }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Speed Tier Duration (seconds)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={5}
+                step={0.5}
+                value={settings.scoring?.bucketSeconds ?? 2}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  scoring: { 
+                    ...prev.scoring,
+                    bucketSeconds: parseFloat(e.target.value) || 2 
+                  }
+                }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Points decrease every N seconds</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Fast Answer Bonus (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={200}
+                step={10}
+                value={settings.scoring?.fastBonusPctAtZero ?? 100}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  scoring: { 
+                    ...prev.scoring,
+                    fastBonusPctAtZero: parseInt(e.target.value) || 100 
+                  }
+                }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Bonus for instant answers</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Slow Answer Bonus (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={10}
+                value={settings.scoring?.slowBonusPctAtTimeout ?? 0}
+                onChange={(e) => setSettings(prev => ({ 
+                  ...prev, 
+                  scoring: { 
+                    ...prev.scoring,
+                    slowBonusPctAtTimeout: parseInt(e.target.value) || 0 
+                  }
+                }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Bonus just before timeout</p>
+            </div>
           </div>
         </div>
       </section>
